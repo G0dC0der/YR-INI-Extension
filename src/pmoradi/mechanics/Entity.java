@@ -25,8 +25,8 @@ public class Entity {
         return id;
     }
 
-    public Pair[] export(){
-        return tags.toArray(new Pair[tags.size()]);
+    public List<Pair> getTags(){
+        return tags;
     }
 
     @Override

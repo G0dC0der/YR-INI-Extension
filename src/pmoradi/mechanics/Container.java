@@ -1,13 +1,27 @@
 package pmoradi.mechanics;
 
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
 import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
 
 public class Container {
 
-    private static final String IMPORT = "@import";
+    private enum TechnoType {
+        VEHICLE,
+        INFANTRY,
+        BUILDING,
+        AIRCRAFT,
+        OTHER
+    }
 
+    private static final String IMPORT = "@import";
+    private static final String EXTEND = "@extend";
+    private static final String CALC = "@calc";
+
+    private ScriptEngine engine;
     private List<Entity> entities;
     private List<Pair> variables;
     private Pattern idPattern;
@@ -18,6 +32,7 @@ public class Container {
         variables = new ArrayList<>();
         idPattern = Pattern.compile("\\[.*\\].*");
         pairPattern = Pattern.compile(".*\\=.*");
+        engine = new ScriptEngineManager().getEngineByName("JavaScript");
     }
 
     public void parse(File src) throws IOException {
@@ -31,9 +46,11 @@ public class Container {
 
                 if (idPattern.matcher(line).matches()) {
                     if (entity != null) {
-                        entities.add(entity);
+                        if (entity.getId().equals("Variables"))
+                            variables.addAll(entity.getTags());
+                        else
+                            entities.add(entity);
                     }
-
                     entity = new Entity(toId(line));
                 } else if (pairPattern.matcher(line).matches()) {
                     Pair pair = toPair(line);
@@ -48,26 +65,57 @@ public class Container {
 
             entities.add(entity);
         }
+    }
 
+    public void process() throws ScriptException {
+        Entity vehicleTypes = findById("VehicleTypes");
+        Entity infantryTypes = findById("InfantryTypes");
+        Entity buildingsTypes = findById("BuildingTypes");
+        Entity aircraftTypes = findById("AircraftTypes");
 
-        for(Iterator<Entity> iterator = entities.iterator(); iterator.hasNext();){
-            Entity entity = iterator.next();
-            if(entity.getId().equals("Variables")) {
-                iterator.remove();
-                variables.addAll(Arrays.asList(entity.export()));
+        for(Entity entity : entities) {
+            List<Pair> tags = entity.getTags();
+
+            for(Pair tag : tags) {
+                if (tag.key.equals(EXTEND)) {
+                    Entity parent = findById(tag.value);
+
+                    //Copy tags. Do not override subclass
+                }
+                if (tag.key.contains("$")) {
+
+                }
+                if(tag.value.contains("$")) {
+
+                }
+
+                if(tag.value.startsWith(CALC)) {
+                    String expression = tag.value.replace(CALC, "").trim();
+                    String evaluated = (String) engine.eval(expression);
+                }
+
+                TechnoType type = guessType(entity);
+                if(type != TechnoType.OTHER) {
+                    //Auto add
+                }
             }
         }
     }
 
-    public void process() {
-
+    public List<Entity> export() {
+        return new ArrayList<>(entities);
     }
 
-    public void ship(File dest) throws IOException {
-        try(BufferedWriter writer = new BufferedWriter(new FileWriter(dest))) {
-            for(Entity entity : entities)
-                writer.write(EntityExporter.export(entity));
+    private TechnoType guessType(Entity entity) {
+        return null;
+    }
+
+    private Entity findById(String id) {
+        for(Entity entity : entities) {
+            if(id.equals(entity.getId()))
+                return entity;
         }
+        return null;
     }
 
     private BufferedReader getReader(File file) throws FileNotFoundException {

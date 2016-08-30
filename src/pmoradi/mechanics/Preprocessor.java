@@ -1,6 +1,8 @@
 package pmoradi.mechanics;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 
 public class Preprocessor {
@@ -25,7 +27,14 @@ public class Preprocessor {
     public void compute() throws IOException {
         container = new Container();
         container.parse(src);
+        container.process();
 
-        container.ship(dest);
+        if(overwrite && dest.exists())
+            dest.delete();
+
+        try(BufferedWriter writer = new BufferedWriter(new FileWriter(dest))) {
+            for(Entity entity : container.export())
+                writer.write(EntityExporter.export(entity));
+        }
     }
 }
