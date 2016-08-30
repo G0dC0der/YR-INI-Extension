@@ -1,6 +1,6 @@
 package pmoradi.mechanics;
 
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 
 public class Entity {
@@ -10,7 +10,7 @@ public class Entity {
 
     public Entity(String id) {
         this.id = id;
-        tags = new LinkedList<>();
+        tags = new ArrayList<>(20);
     }
 
     public void add(String key, String value) {
@@ -21,12 +21,28 @@ public class Entity {
         tags.add(pair);
     }
 
+    public void remove(String key) {
+        for(int i = 0; i < tags.size(); i++) {
+            if(tags.get(i).key.equals(key)) {
+            tags.remove(i);
+                return;
+            }
+        }
+    }
+
     public String getId() {
         return id;
     }
 
     public List<Pair> getTags(){
-        return tags;
+        return new ArrayList<>(tags);
+    }
+
+    public boolean containsKey(String key) {
+        for(Pair tag : tags)
+            if(tag.key.equals(key))
+                return true;
+        return false;
     }
 
     @Override

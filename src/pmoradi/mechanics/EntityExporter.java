@@ -6,7 +6,7 @@ public class EntityExporter {
         StringBuilder bu = new StringBuilder(1024 * 1024 * 5);
 
         bu.append("[").append(entity.getId()).append("]\n");
-        for(Pair pair : entity.export())
+        for(Pair pair : entity.getTags())
             bu.append(pair.key).append("=").append(pair.value).append("\n");
 
         return bu.append("\n").toString();

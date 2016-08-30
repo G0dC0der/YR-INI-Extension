@@ -9,27 +9,21 @@ import java.util.regex.Pattern;
 
 public class Container {
 
-    private enum TechnoType {
-        VEHICLE,
-        INFANTRY,
-        BUILDING,
-        AIRCRAFT,
-        OTHER
-    }
-
     private static final String IMPORT = "@import";
     private static final String EXTEND = "@extend";
     private static final String CALC = "@calc";
 
     private ScriptEngine engine;
     private List<Entity> entities;
-    private List<Pair> variables;
+    private Map<String, Entity> entityMap;
+    private Map<String, String> variables;
     private Pattern idPattern;
     private Pattern pairPattern;
 
     public Container() {
-        entities = new LinkedList<>();
-        variables = new ArrayList<>();
+        entities = new ArrayList<>(2000);
+        variables = new HashMap<>();
+        entityMap = new HashMap<>();
         idPattern = Pattern.compile("\\[.*\\].*");
         pairPattern = Pattern.compile(".*\\=.*");
         engine = new ScriptEngineManager().getEngineByName("JavaScript");
@@ -45,11 +39,9 @@ public class Container {
                     continue;
 
                 if (idPattern.matcher(line).matches()) {
-                    if (entity != null) {
-                        if (entity.getId().equals("Variables"))
-                            variables.addAll(entity.getTags());
-                        else
-                            entities.add(entity);
+                    if (entity != null && !entity.getId().equals("Variables")) {
+                        entities.add(entity);
+                        entityMap.put(entity.getId(), entity);
                     }
                     entity = new Entity(toId(line));
                 } else if (pairPattern.matcher(line).matches()) {
@@ -57,6 +49,8 @@ public class Container {
 
                     if (pair.key.equals(IMPORT)) {
                         parse(new File(pair.value));
+                    } else if (entity.getId().equals("Variables")) {
+                        variables.put(pair.key, pair.value);
                     } else {
                         entity.add(pair);
                     }
@@ -68,35 +62,25 @@ public class Container {
     }
 
     public void process() throws ScriptException {
-        Entity vehicleTypes = findById("VehicleTypes");
-        Entity infantryTypes = findById("InfantryTypes");
-        Entity buildingsTypes = findById("BuildingTypes");
-        Entity aircraftTypes = findById("AircraftTypes");
+        final Entity vehicleTypes = findById("VehicleTypes");
+        final Entity infantryTypes = findById("InfantryTypes");
+        final Entity buildingsTypes = findById("BuildingTypes");
+        final Entity aircraftTypes = findById("AircraftTypes");
 
         for(Entity entity : entities) {
-            List<Pair> tags = entity.getTags();
+            for(Pair tag : entity.getTags()) { //Should we restrict variables to letters and/or numbers?
+                if (tag.value.startsWith("$")) { //NOT SUFFICIENT! A value may contains multiple variables. This is common in calc statements.
+                    tag.value = getVariableValue(tag.value);
+                }
 
-            for(Pair tag : tags) {
                 if (tag.key.equals(EXTEND)) {
-                    Entity parent = findById(tag.value);
-
-                    //Copy tags. Do not override subclass
-                }
-                if (tag.key.contains("$")) {
-
-                }
-                if(tag.value.contains("$")) {
-
+                    merge(findById(tag.value), entity);
+                    entity.remove(tag.key);
                 }
 
-                if(tag.value.startsWith(CALC)) {
+                if(tag.value.startsWith(CALC)) { //Assuming all variables are replaced with their corresponding value.
                     String expression = tag.value.replace(CALC, "").trim();
-                    String evaluated = (String) engine.eval(expression);
-                }
-
-                TechnoType type = guessType(entity);
-                if(type != TechnoType.OTHER) {
-                    //Auto add
+                    tag.value = engine.eval(expression).toString();
                 }
             }
         }
@@ -106,16 +90,24 @@ public class Container {
         return new ArrayList<>(entities);
     }
 
-    private TechnoType guessType(Entity entity) {
-        return null;
+    private void merge(Entity source, Entity target) {
+        for(Pair tag : source.getTags()) {
+            if(!target.containsKey(tag.key))
+                target.add(tag);
+        }
     }
 
     private Entity findById(String id) {
-        for(Entity entity : entities) {
-            if(id.equals(entity.getId()))
-                return entity;
-        }
-        return null;
+        Entity entity = entityMap.get(id);
+        Objects.requireNonNull(entity, "The given ID '" + id + "' could not be found.");
+        return entity;
+    }
+
+    private String getVariableValue(String key){
+        if(key.startsWith("$"))
+            key = key.substring(1, key.length());
+
+        return variables.get(key);
     }
 
     private BufferedReader getReader(File file) throws FileNotFoundException {

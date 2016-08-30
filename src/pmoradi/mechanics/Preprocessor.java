@@ -1,5 +1,6 @@
 package pmoradi.mechanics;
 
+import javax.script.ScriptException;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -18,13 +19,14 @@ public class Preprocessor {
 
         this.src = src;
         this.dest = dest;
+        overwrite = true;
     }
 
     public void overwriteDestinationFile(boolean overwrite) {
         this.overwrite = overwrite;
     }
 
-    public void compute() throws IOException {
+    public void compute() throws IOException, ScriptException {
         container = new Container();
         container.parse(src);
         container.process();
