@@ -7,6 +7,8 @@ import java.io.*;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Container {
 
@@ -17,6 +19,7 @@ public class Container {
     private ScriptEngine engine;
     private List<Entity> entities;
     private Map<String, String> variables;
+    private Map<String, List<Pair>> customTags;
     private Pattern idPattern;
     private Pattern pairPattern;
     private Pattern varPattern;
@@ -24,6 +27,7 @@ public class Container {
     public Container() {
         entities = new ArrayList<>(2000);
         variables = new HashMap<>();
+        customTags = new HashMap<>();
         idPattern = Pattern.compile("\\[.*\\].*");
         pairPattern = Pattern.compile(".*\\=.*");
         varPattern = Pattern.compile("\\$[a-zA-Z]+");
@@ -47,7 +51,7 @@ public class Container {
                     continue;
 
                 if (idPattern.matcher(line).matches()) {
-                    if (entity != null && !entity.getId().equals("Variables")) {
+                    if (entity != null && !entity.getId().equals("Variables") && !entity.getId().equals("CustomTags")) {
                         entities.add(entity);
                     }
                     entity = new Entity(toId(line));
@@ -58,9 +62,14 @@ public class Container {
                         parse(new File(src.getParent(), pair.value));
                     } else if (entity.getId().equals("Variables")) {
                         variables.put(pair.key, pair.value);
+                    } else if (entity.getId().equals("CustomTags")) {
+                        List<Pair> list = Stream.of(pair.value.split(":")).map(this::toPair).collect(Collectors.toList());
+                        customTags.put(pair.key, list);
                     } else {
                         entity.add(pair);
                     }
+                } else if (!line.isEmpty()) {
+                    System.err.println("Unknown line of code: " + line);
                 }
             }
 
@@ -70,7 +79,10 @@ public class Container {
 
     public void process() throws ScriptException {
         for(Entity entity : entities) {
-            for(Pair tag : entity.getTags()) {
+            List<Pair> copyList = entity.getTags();
+            for(int i = 0; i < copyList.size(); i++) {
+                Pair tag = copyList.get(i);
+
                 if (tag.value.contains("$")) {
                     tag.value = replaceVars(tag.value);
                 }
@@ -83,6 +95,13 @@ public class Container {
                 if(tag.value.startsWith(CALC)) {
                     String expression = tag.value.replace(CALC, "").trim();
                     tag.value = engine.eval(expression).toString();
+                }
+
+                List<Pair> customTags = this.customTags.get(tag.key);
+                if (customTags != null && (tag.value.equals("true") || tag.value.equals("yes"))) {
+                    copyList.addAll(customTags);
+                    entity.add(customTags);
+                    entity.remove(tag.key);
                 }
             }
         }
@@ -119,7 +138,8 @@ public class Container {
     }
 
     private Pair toPair(String line) {
-        String[] tokens = line.split("=");
+        int eqIndex = line.indexOf("=");
+        String[] tokens = { line.substring(0, eqIndex), line.substring(eqIndex + 1) };
         Pair pair = new Pair(tokens[0], tokens.length == 1 ? "" : tokens[1]);
         int index = pair.value.indexOf(";");
         pair.value = pair.value.substring(0, index != -1 ? index : pair.value.length()).trim();

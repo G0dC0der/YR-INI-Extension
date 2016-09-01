@@ -11,7 +11,6 @@ public class Preprocessor {
     private File src;
     private File dest;
     private boolean overwrite;
-    private Container container;
 
     public Preprocessor(File src, File dest) {
         if (src.getAbsolutePath().equals(dest.getAbsolutePath()))
@@ -27,14 +26,14 @@ public class Preprocessor {
     }
 
     public void compute() throws IOException, ScriptException {
-        container = new Container();
+        Container container = new Container();
         container.parse(src);
         container.process();
 
         if(overwrite && dest.exists())
             dest.delete();
 
-        try(BufferedWriter writer = new BufferedWriter(new FileWriter(dest))) {
+        try(BufferedWriter writer = new BufferedWriter(new FileWriter(dest))) { //TODO: Inline
             for(Entity entity : container.export())
                 writer.write(EntityExporter.export(entity));
         }

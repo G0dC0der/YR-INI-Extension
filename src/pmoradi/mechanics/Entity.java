@@ -21,6 +21,10 @@ public class Entity {
         tags.add(pair);
     }
 
+    public void add(List<Pair> pairs) {
+        tags.addAll(pairs);
+    }
+
     public void remove(String key) {
         for(int i = 0; i < tags.size(); i++) {
             if(tags.get(i).key.equals(key)) {
