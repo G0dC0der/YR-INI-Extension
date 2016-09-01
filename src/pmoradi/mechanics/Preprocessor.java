@@ -34,8 +34,15 @@ public class Preprocessor {
             dest.delete();
 
         try(BufferedWriter writer = new BufferedWriter(new FileWriter(dest))) { //TODO: Inline
-            for(Entity entity : container.export())
-                writer.write(EntityExporter.export(entity));
+            for(Entity entity : container.export()) {
+                writer.write("[" + entity.getId() + "]");
+                writer.newLine();
+                for(Pair pair : entity.getTags()) {
+                    writer.write(pair.toString());
+                    writer.newLine();
+                }
+                writer.newLine();
+            }
         }
     }
 }
