@@ -5,6 +5,7 @@ import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import java.io.*;
 import java.util.*;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Container {
@@ -15,40 +16,46 @@ public class Container {
 
     private ScriptEngine engine;
     private List<Entity> entities;
-    private Map<String, Entity> entityMap;
     private Map<String, String> variables;
     private Pattern idPattern;
     private Pattern pairPattern;
+    private Pattern varPattern;
 
     public Container() {
         entities = new ArrayList<>(2000);
         variables = new HashMap<>();
-        entityMap = new HashMap<>();
         idPattern = Pattern.compile("\\[.*\\].*");
         pairPattern = Pattern.compile(".*\\=.*");
+        varPattern = Pattern.compile("\\$[a-zA-Z]+");
         engine = new ScriptEngineManager().getEngineByName("JavaScript");
     }
 
     public void parse(File src) throws IOException {
+        if (!src.exists() || src.isDirectory() || !src.canRead())
+            throw new IOException("The source file could not be read or does not exists: " + src.getAbsolutePath());
+
         try (BufferedReader reader = getReader(src)) {
             String line = null;
             Entity entity = null;
+            boolean inComment = false;
 
             while ((line = reader.readLine()) != null) {
-                if (line.startsWith(";"))
+                if (line.startsWith("#"))
+                    inComment = !inComment;
+
+                if (inComment || line.startsWith(";"))
                     continue;
 
                 if (idPattern.matcher(line).matches()) {
                     if (entity != null && !entity.getId().equals("Variables")) {
                         entities.add(entity);
-                        entityMap.put(entity.getId(), entity);
                     }
                     entity = new Entity(toId(line));
                 } else if (pairPattern.matcher(line).matches()) {
                     Pair pair = toPair(line);
 
                     if (pair.key.equals(IMPORT)) {
-                        parse(new File(pair.value));
+                        parse(new File(src.getParent(), pair.value));
                     } else if (entity.getId().equals("Variables")) {
                         variables.put(pair.key, pair.value);
                     } else {
@@ -62,15 +69,10 @@ public class Container {
     }
 
     public void process() throws ScriptException {
-        final Entity vehicleTypes = findById("VehicleTypes");
-        final Entity infantryTypes = findById("InfantryTypes");
-        final Entity buildingsTypes = findById("BuildingTypes");
-        final Entity aircraftTypes = findById("AircraftTypes");
-
         for(Entity entity : entities) {
-            for(Pair tag : entity.getTags()) { //Should we restrict variables to letters and/or numbers?
-                if (tag.value.startsWith("$")) { //NOT SUFFICIENT! A value may contains multiple variables. This is common in calc statements.
-                    tag.value = getVariableValue(tag.value);
+            for(Pair tag : entity.getTags()) {
+                if (tag.value.contains("$")) {
+                    tag.value = replaceVars(tag.value);
                 }
 
                 if (tag.key.equals(EXTEND)) {
@@ -78,7 +80,7 @@ public class Container {
                     entity.remove(tag.key);
                 }
 
-                if(tag.value.startsWith(CALC)) { //Assuming all variables are replaced with their corresponding value.
+                if(tag.value.startsWith(CALC)) {
                     String expression = tag.value.replace(CALC, "").trim();
                     tag.value = engine.eval(expression).toString();
                 }
@@ -98,9 +100,11 @@ public class Container {
     }
 
     private Entity findById(String id) {
-        Entity entity = entityMap.get(id);
-        Objects.requireNonNull(entity, "The given ID '" + id + "' could not be found.");
-        return entity;
+        for (Entity entity : entities) {
+            if (entity.getId().equals(id))
+                return entity;
+        }
+        throw new IllegalArgumentException("The given ID '" + id + "' could not be found.");
     }
 
     private String getVariableValue(String key){
@@ -125,5 +129,16 @@ public class Container {
 
     private String toId(String line) {
         return line.substring(1, line.indexOf("]"));
+    }
+
+    private String replaceVars(String str) {
+        Matcher matcher = varPattern.matcher(str);
+
+        while(matcher.find()) {
+            String var = matcher.group();
+            str = str.replace(var, getVariableValue(var));
+        }
+
+        return str;
     }
 }
